@@ -20,6 +20,10 @@ If ROOT is needed to visualize plots in `.root` file, get a CMSSW release and ac
 ```
 scram list
 cmsrel CMSSW_11_1_0_pre8
-cd CMSSW_11_1_0_pre8/src
+cd CMSSW_11_1_0_pre8/src/
 cmsenv
 ```
+
+To deactivate the environment:
+
+`conda deactivate`
