@@ -9,6 +9,10 @@ import pandas as pd
 
 
 root_file = '/lustre/cms/store/user/slezki/Filtered/histo_y2s2y1spp_2018_MC_v1.root'
+dataset_dir = '../dataset/'
+
+os.makedirs(dataset__dir, exist_ok=True)
+
 t_tree = 'tTrue'
 f_tree = 'tFake'
 
@@ -70,10 +74,10 @@ print('Len: {}'.format(len(dfM_f)))
 
 # Now save datasets in a single hdf5 file
 
-dfP_t.to_hdf('pions.h5', "true_pionP")
-dfM_t.to_hdf('pions.h5', "true_pionM")
-dfP_f.to_hdf('pions.h5', "true_pionP")
-dfM_f.to_hdf('pions.h5', "fake_pionM")
+dfP_t.to_hdf(dataset_dir + 'pions.h5', "true_pionP")
+dfM_t.to_hdf(dataset_dir + 'pions.h5', "true_pionM")
+dfP_f.to_hdf(dataset_dir + 'pions.h5', "fake_pionP")
+dfM_f.to_hdf(dataset_dir + 'pions.h5', "fake_pionM")
 
 
 print('Datasets correctly saved!')
