@@ -19,7 +19,7 @@ import itertools
 data_file = 'pions.h5'
 batch_size = 128
 epochs = 30
-model_name = 'mlp'
+model_name = 'mlpV2'
 
 model_dir = '../models/'
 hist_dir = '../histories/'
@@ -33,12 +33,15 @@ os.makedirs(plot_dir, exist_ok=True)
 # Read the dataset
 tpp = pd.read_hdf(dataset_dir + data_file, 'true_pionP').values
 tpm = pd.read_hdf(dataset_dir + data_file, 'true_pionM').values
+ty1s = pd.read_hdf(dataset_dir + data_file, 'true_Y1S').values
+
 fpp = pd.read_hdf(dataset_dir + data_file, 'fake_pionP').values
 fpm = pd.read_hdf(dataset_dir + data_file, 'fake_pionM').values
+fy1s = pd.read_hdf(dataset_dir + data_file, 'fake_Y1S').values
 
 # Now concatenate pion+ and pion- in both classes
-true_pions = np.concatenate([tpp, tpm], axis=1)
-fake_pions = np.concatenate([fpp, fpm], axis=1)
+true_pions = np.concatenate([ty1s, tpp, tpm], axis=1)
+fake_pions = np.concatenate([fy1s, fpp, fpm], axis=1)
 
 # Create ground truths for training
 true_gt = np.ones(true_pions.shape[0])
@@ -54,14 +57,14 @@ input_data, labels = shuffle(input_data, labels)
 # Split the dataset in train and test
 x_train, x_test, y_train, y_test = train_test_split(input_data, labels, test_size=0.1)
 
-model = getattr(models, model_name)([input_data.shape[1]])
+model = getattr(models, model_name)([input_data.shape[1]-1])
 model.summary()
 
 # Since the dataset is imbalanced, we need to calculate weights for the two classes
 weights = class_weight.compute_class_weight('balanced', np.unique(y_train), y_train)
 
 # Now train the model
-history = model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, class_weight=dict(enumerate(weights)), validation_split=0.1, callbacks=[K.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)], shuffle=True, verbose=1)
+history = model.fit([x_train[:,1:], x_train[:,0]], y_train, batch_size=batch_size, epochs=epochs, class_weight=dict(enumerate(weights)), validation_split=0.1, callbacks=[K.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)], shuffle=True, verbose=1)
 
 # Save the history for accuracy/loss plots
 history_df = pd.DataFrame(history.history)
@@ -71,7 +74,7 @@ history_df.to_hdf(hist_dir + model_name + '_history.h5', "history", append=False
 model.save(model_dir + model_name + '.h5')
 
 # Now evaluate the model performance
-results = model.predict(x_test)
+results = model.predict([x_test[:,1:],x_test[:,0]])
 results = np.reshape(results, -1)
 
 # Define metrics calculate values
