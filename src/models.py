@@ -38,6 +38,6 @@ def mlpV2(input_shape):
     output_layer = K.layers.Dense(1, activation='sigmoid', name='output', kernel_initializer='he_normal', kernel_regularizer=K.regularizers.l2(1e-4))(dense)
 
     model = K.Model(inputs=[input_1,input_2], outputs=output_layer, name='MLPV2')
-    model.compile(optimizer=K.optimizers.Adam(), loss = 'binary_crossentropy', metrics = ['accuracy'])    
+    model.compile(optimizer=K.optimizers.Adam(learning_rate=0.0001), loss = 'binary_crossentropy', metrics = ['accuracy'])    
   
     return model
