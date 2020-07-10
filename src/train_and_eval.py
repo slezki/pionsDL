@@ -3,6 +3,7 @@
 
 
 import os
+import argparse
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras as K
@@ -16,10 +17,17 @@ import itertools
 
 # tf.enable_eager_execution()
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--model', type=str, default='mlp', help='mlp or mlpV2')
+parser.add_argument('--epochs', '-e', type=int, default=30)
+parser.add_argument('--batchsize', '-bs', type=int, default=128)
+args = parser.parse_args()
+
+
 data_file = 'pions.h5'
-batch_size = 128
-epochs = 30
-model_name = 'mlpV2'
+batch_size = args.batchsize
+epochs = args.epochs
+model_name = args.model
 
 model_dir = '../models/'
 hist_dir = '../histories/'
@@ -39,6 +47,8 @@ fpp = pd.read_hdf(dataset_dir + data_file, 'fake_pionP').values
 fpm = pd.read_hdf(dataset_dir + data_file, 'fake_pionM').values
 fy1s = pd.read_hdf(dataset_dir + data_file, 'fake_Y1S').values
 
+num_features = tpp.shape[1]
+
 # Now concatenate pion+ and pion- in both classes
 true_pions = np.concatenate([ty1s, tpp, tpm], axis=1)
 fake_pions = np.concatenate([fy1s, fpp, fpm], axis=1)
@@ -55,16 +65,16 @@ labels = np.concatenate([true_gt,fake_gt], axis=0)
 input_data, labels = shuffle(input_data, labels)
 
 # Split the dataset in train and test
-x_train, x_test, y_train, y_test = train_test_split(input_data, labels, test_size=0.1)
+x_train, x_test, y_train, y_test = train_test_split(input_data, labels, test_size=0.2)
 
-model = getattr(models, model_name)([input_data.shape[1]-1])
+model = getattr(models, model_name)([int((input_data.shape[1]-1)/2)])
 model.summary()
 
 # Since the dataset is imbalanced, we need to calculate weights for the two classes
 weights = class_weight.compute_class_weight('balanced', np.unique(y_train), y_train)
 
 # Now train the model
-history = model.fit([x_train[:,1:], x_train[:,0]], y_train, batch_size=batch_size, epochs=epochs, class_weight=dict(enumerate(weights)), validation_split=0.1, callbacks=[K.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)], shuffle=True, verbose=1)
+history = model.fit([x_train[:,1:num_features+1], x_train[:,num_features+1:], x_train[:,0]], y_train, batch_size=batch_size, epochs=epochs, class_weight=dict(enumerate(weights)), validation_split=0.1, callbacks=[K.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)], shuffle=True, verbose=1)
 
 # Save the history for accuracy/loss plots
 history_df = pd.DataFrame(history.history)
@@ -74,7 +84,7 @@ history_df.to_hdf(hist_dir + model_name + '_history.h5', "history", append=False
 model.save(model_dir + model_name + '.h5')
 
 # Now evaluate the model performance
-results = model.predict([x_test[:,1:],x_test[:,0]])
+results = model.predict([x_test[:,1:num_features+1], x_test[:,num_features+1:], x_test[:,0]])
 results = np.reshape(results, -1)
 
 # Define metrics calculate values
