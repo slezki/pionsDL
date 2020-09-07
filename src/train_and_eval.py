@@ -14,71 +14,118 @@ from sklearn.utils import class_weight, shuffle
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import balanced_accuracy_score, confusion_matrix, roc_curve, auc
 import itertools
+from tqdm import tqdm
+from random import sample
+
 
 # tf.enable_eager_execution()
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=str, default='mlp', help='mlp or mlpV2')
 parser.add_argument('--epochs', '-e', type=int, default=30)
-parser.add_argument('--batchsize', '-bs', type=int, default=128)
+parser.add_argument('--batchsize', '-bs', type=int, default=1024)
+parser.add_argument('--balanced', type=int, default=0)
 args = parser.parse_args()
 
 
-data_file = 'pions.h5'
 batch_size = args.batchsize
 epochs = args.epochs
-model_name = args.model
+model_arch = args.model
+bl = args.balanced
 
 model_dir = '../models/'
 hist_dir = '../histories/'
 plot_dir = '../plots/'
 dataset_dir = '../dataset/'
+model_name = model_arch
 
 os.makedirs(model_dir, exist_ok=True)
 os.makedirs(hist_dir, exist_ok=True)
-os.makedirs(plot_dir, exist_ok=True)
 
-# Read the dataset
-tpp = pd.read_hdf(dataset_dir + data_file, 'true_pionP').values
-tpm = pd.read_hdf(dataset_dir + data_file, 'true_pionM').values
-ty1s = pd.read_hdf(dataset_dir + data_file, 'true_Y1S').values
 
-fpp = pd.read_hdf(dataset_dir + data_file, 'fake_pionP').values
-fpm = pd.read_hdf(dataset_dir + data_file, 'fake_pionM').values
-fy1s = pd.read_hdf(dataset_dir + data_file, 'fake_Y1S').values
+# Read the datasets
+files = [f for f in os.listdir(dataset_dir) if f.endswith("h5")]
+print(files)
 
-num_features = tpp.shape[1]
+input_data = []
+labels = []
+for name in tqdm(files):
+    print("Reading file", name)
+    pions1 = pd.read_hdf(dataset_dir + name, 'pion1').values
+    pions2 = pd.read_hdf(dataset_dir + name, 'pion2').values
+    addinfo = pd.read_hdf(dataset_dir + name, 'add_info').values
 
-# Now concatenate pion+ and pion- in both classes
-true_pions = np.concatenate([ty1s, tpp, tpm], axis=1)
-fake_pions = np.concatenate([fy1s, fpp, fpm], axis=1)
+    file_inputs = np.concatenate([np.reshape(addinfo[:,1], (-1,1)), pions1, pions2], axis=1)
+    input_data.append(file_inputs)
+    labels.append(addinfo[:,2])
 
-# Create ground truths for training
-true_gt = np.ones(true_pions.shape[0])
-fake_gt = np.zeros(fake_pions.shape[0])
+if(bl==1):
+    model_name = model_name + '_bldata'
+    balanced_samples = 0
+    for label_array in labels:
+        classes, counts = np.unique(label_array, return_counts=True)
+        if(len(classes)==2):
+            balanced_samples = np.min(counts)
 
-# Now create input data and ground truths
-input_data = np.concatenate([true_pions,fake_pions], axis=0)
-labels = np.concatenate([true_gt,fake_gt], axis=0)
+    balanced_input_data = []
+    balanced_labels = []
+    for i in range(len(labels)):
+        classes = np.unique(labels[i])
+        if(len(classes)==2):
+            balanced_input_data.append(input_data[i][:int(balanced_samples+(balanced_samples/3))])
+            balanced_labels.append(labels[i][:int(balanced_samples+(balanced_samples/3))])
+        else:
+            samp = sample(range(len(labels[i])), int(balanced_samples/3))
+            temp_samples = [input_data[i][k] for k in samp]
+            temp_labels = [labels[i][k] for k in samp]
+            balanced_input_data.append(temp_samples)
+            balanced_labels.append(temp_labels)    
+    
+    input_data = balanced_input_data
+    labels = balanced_labels
+
+# Now create input/output
+input_array = np.array([item for sublist in input_data for item in sublist])
+output_array = np.array([item for sublist in labels for item in sublist])
+
+num_features = int((input_array.shape[1]-1)/2)
 
 # Shuffle the dataset, since we have all the 'true' pions first, and then the fake ones
-input_data, labels = shuffle(input_data, labels)
+input_array, output_array = shuffle(input_array, output_array)
+
+print('****************')
+print('TOTAL SAMPLES: ', len(output_array))
+classes, counts = np.unique(output_array, return_counts=True)
+print(classes, counts)
 
 # Split the dataset in train and test
-x_train, x_test, y_train, y_test = train_test_split(input_data, labels, test_size=0.2)
+x_train, x_test, y_train, y_test = train_test_split(input_array, output_array, test_size=0.2)
 
-model = getattr(models, model_name)([int((input_data.shape[1]-1)/2)])
+print('TRAIN SAMPLES : ', y_train)
+classes, counts = np.unique(y_train, return_counts=True)
+print(classes, counts)
+
+print('TEST SAMPLES : ', y_test)
+classes, counts = np.unique(y_test, return_counts=True)
+print(classes, counts)
+print('****************')
+
+model = getattr(models, model_arch)(num_features)
 model.summary()
 
-# Since the dataset is imbalanced, we need to calculate weights for the two classes
-weights = class_weight.compute_class_weight('balanced', np.unique(y_train), y_train)
-
-# Now train the model
-history = model.fit([x_train[:,1:num_features+1], x_train[:,num_features+1:], x_train[:,0]], y_train, batch_size=batch_size, epochs=epochs, class_weight=dict(enumerate(weights)), validation_split=0.1, callbacks=[K.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)], shuffle=True, verbose=1)
+if(bl==0):
+    weights = class_weight.compute_class_weight('balanced', np.unique(y_train), y_train)    
+    history = model.fit([x_train[:,1:num_features+1], x_train[:,num_features+1:], x_train[:,0]], y_train, batch_size=batch_size, epochs=epochs, class_weight=dict(enumerate(weights)), validation_split=0.1, callbacks=[K.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)], shuffle=True, verbose=1)
+else:
+    history = model.fit([x_train[:,1:num_features+1], x_train[:,num_features+1:], x_train[:,0]], y_train, batch_size=batch_size, epochs=epochs, validation_split=0.1, callbacks=[K.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1, restore_best_weights=True)], shuffle=True, verbose=1)
 
 # Save the history for accuracy/loss plots
 history_df = pd.DataFrame(history.history)
 history_df.to_hdf(hist_dir + model_name + '_history.h5', "history", append=False)
+
+plot_dir = plot_dir + model_name +'/'
+os.makedirs(plot_dir, exist_ok=True)
 
 # Save model and weights
 model.save(model_dir + model_name + '.h5')
@@ -126,7 +173,7 @@ plt.gca().invert_yaxis()
 plt.xlabel('Value')
 plt.title(model_name + ' - scores')
 plt.tight_layout()
-plt.savefig(plot_dir + model_name + '-scores.pdf', format='pdf')
+plt.savefig(plot_dir + 'scores.pdf', format='pdf')
 plt.show()
 
 # Plot the loss function
@@ -149,7 +196,7 @@ plt.xlabel('Epoch', labelpad=8, fontsize=14)
 plt.ylabel('Loss', labelpad=10, fontsize=14)
 plt.legend(loc='upper right')
 plt.tight_layout()
-plt.savefig(plot_dir + model_name + '-train_loss.pdf', format='pdf')
+plt.savefig(plot_dir + 'train_loss.pdf', format='pdf')
 plt.show()
 
 # Plot accuracy
@@ -172,7 +219,7 @@ plt.xlabel('Epoch', labelpad=8, fontsize=14)
 plt.ylabel('Accuracy', labelpad=10, fontsize=14)
 plt.legend(loc='lower right')
 plt.tight_layout()
-plt.savefig(plot_dir + model_name + '-accuracy.pdf', format='pdf')
+plt.savefig(plot_dir + 'accuracy.pdf', format='pdf')
 plt.show()
 
 
@@ -204,8 +251,8 @@ np.set_printoptions(precision=2)
 
 # Plot normalized confusion matrix
 plt.figure()
-plot_confusion_matrix(cnf_matrix, classes=class_names, title='Confusion matrix')
-plt.savefig(plot_dir + model_name + '-confusion_matrix.pdf', format='pdf')
+plot_confusion_matrix(cnf_matrix, classes=class_names, title= model_name + ' - confusion matrix')
+plt.savefig(plot_dir + 'confusion_matrix.pdf', format='pdf')
 plt.show()
 
 # Plot the roc curve
@@ -222,5 +269,5 @@ plt.ylabel('True Positive Rate')
 plt.title(model_name + ' - roc curve')
 plt.grid(ls=':')
 plt.legend(loc="lower right")
-plt.savefig(plot_dir + model_name + '-roc_curve.pdf', format='pdf')
+plt.savefig(plot_dir + 'roc_curve.pdf', format='pdf')
 plt.show()
