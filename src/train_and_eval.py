@@ -24,7 +24,7 @@ parser.add_argument('--batchsize', '-bs', type=int, default=128)
 args = parser.parse_args()
 
 
-data_file = 'pions.h5'
+data_file = 'RS.h5'
 batch_size = args.batchsize
 epochs = args.epochs
 model_name = args.model
