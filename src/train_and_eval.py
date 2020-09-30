@@ -9,7 +9,11 @@ import tensorflow as tf
 from tensorflow import keras as K
 import pandas as pd
 import models
+
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
+
 from sklearn.utils import class_weight, shuffle
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import balanced_accuracy_score, confusion_matrix, roc_curve, auc
@@ -17,9 +21,7 @@ import itertools
 from tqdm import tqdm
 from random import sample
 
-
 # tf.enable_eager_execution()
-
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=str, default='mlp', help='mlp or mlpV2')
@@ -28,11 +30,6 @@ parser.add_argument('--batchsize', '-bs', type=int, default=1024)
 parser.add_argument('--balanced', type=int, default=0)
 args = parser.parse_args()
 
-
-<<<<<<< HEAD
-data_file = 'RS.h5'
-=======
->>>>>>> origin/master
 batch_size = args.batchsize
 epochs = args.epochs
 model_arch = args.model
@@ -177,8 +174,8 @@ plt.gca().invert_yaxis()
 plt.xlabel('Value')
 plt.title(model_name + ' - scores')
 plt.tight_layout()
-plt.savefig(plot_dir + 'scores.pdf', format='pdf')
-plt.show()
+plt.savefig(plot_dir + 'scores.png', format='png')
+#plt.show()
 
 # Plot the loss function
 plt.figure()
@@ -200,8 +197,8 @@ plt.xlabel('Epoch', labelpad=8, fontsize=14)
 plt.ylabel('Loss', labelpad=10, fontsize=14)
 plt.legend(loc='upper right')
 plt.tight_layout()
-plt.savefig(plot_dir + 'train_loss.pdf', format='pdf')
-plt.show()
+plt.savefig(plot_dir + 'train_loss.png', format='png')
+#plt.show()
 
 # Plot accuracy
 plt.figure()
@@ -223,8 +220,8 @@ plt.xlabel('Epoch', labelpad=8, fontsize=14)
 plt.ylabel('Accuracy', labelpad=10, fontsize=14)
 plt.legend(loc='lower right')
 plt.tight_layout()
-plt.savefig(plot_dir + 'accuracy.pdf', format='pdf')
-plt.show()
+plt.savefig(plot_dir + 'accuracy.png', format='png')
+#plt.show()
 
 
 # Define and compute the confusion matrix
@@ -256,8 +253,8 @@ np.set_printoptions(precision=2)
 # Plot normalized confusion matrix
 plt.figure()
 plot_confusion_matrix(cnf_matrix, classes=class_names, title= model_name + ' - confusion matrix')
-plt.savefig(plot_dir + 'confusion_matrix.pdf', format='pdf')
-plt.show()
+plt.savefig(plot_dir + 'confusion_matrix.png', format='png')
+#plt.show()
 
 # Plot the roc curve
 plt.figure()
@@ -273,5 +270,5 @@ plt.ylabel('True Positive Rate')
 plt.title(model_name + ' - roc curve')
 plt.grid(ls=':')
 plt.legend(loc="lower right")
-plt.savefig(plot_dir + 'roc_curve.pdf', format='pdf')
-plt.show()
+plt.savefig(plot_dir + 'roc_curve.png', format='png')
+#plt.show()

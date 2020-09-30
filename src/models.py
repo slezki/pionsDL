@@ -59,3 +59,5 @@ def mlpV2(input_shape):
     model.compile(optimizer=K.optimizers.Adam(), loss = 'binary_crossentropy', metrics = ['accuracy'])    
   
     return model
+
+
